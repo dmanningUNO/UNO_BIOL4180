@@ -1,0 +1,213 @@
+---
+title: "StreamHydrologyLab"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Stream Hydrology Lab 
+
+We will use publically available data collected by USGS to explore patterns of hydrology in Nebraska streams. We will use a new R package called 'dataRetrieval' to access the data and input into R for graphical analysis. By the end of the lab you should be able to:
+1) Access data from USGS using the dataRetrieval pacakge.
+2) Explore trends in discharge from any site where these data are available (e.g., the Big Papillion) using graphs.
+3) Understand and explore how hydrology is changed by urbanization.
+4) Explore how turbidity and solute concentrations change with discharge.
+
+## First , let's install and load 'dataRetrieval'
+```{r, warning=FALSE,message=FALSE}
+install.packages('dataRetrieval')
+library(dataRetrieval)
+
+```
+
+Congratulations, we now have access to pretty much any and all of the water data collected by USGS! The data are housed in the National Water Information System or NWIS - this package allows us to retrieve data that's stored remotely on NWIS. Let's take a look at its capabilities, starting with the information that's provided for any given USGS site using the function siteINFO().
+
+```{r, results="hide"}
+
+# siteNumbers refer to the assigned identifier from USGS. Here we're looking at the Elkhorn River near Waterloo NE, and the Niobrara River near Sparks, NE.
+
+siteNumbers <- c("06800500","06461500") # this creates a vector of site numbers
+siteINFO <- readNWISsite(siteNumbers) # this reads the information available for any site numbers provided
+siteINFO
+print(siteINFO$station_nm) # check to make sure we got the right sites.
+
+```
+
+Next, let's look at what data are available at these sites using the function whatNWISdata.
+```{r, results="hide"}
+
+dailyDataAvailable <- whatNWISdata(siteNumbers=siteNumbers,
+                    service="dv",statCd="00003") # statCd "00003" refers to whether or not the maximum value is available.
+
+print(head(dailyDataAvailable)) # prints the first 5 rows of the available data info.
+
+```
+
+## Exercise 1: Plotting discharge through time
+OK, now let's access some data. We'll start with daily means of dishcharge from the Elkhorn using the function readNWISdv().
+
+```{r, results="hide"}
+
+siteNumber <- "06800500" # Elkhorn site
+parameterCd <- "00060"  # Discharge
+startDate <- "2018-11-01"  # indicates the starting date
+endDate <- "2019-11-01" # indicates the ending date
+discharge_elk <- readNWISdv(siteNumber, 
+                    parameterCd, startDate, endDate)
+print(head(discharge_elk))
+
+```
+
+Notice that the column names of the data.frame aren't super helpful. We can change them to something a bit more useful using renameNWISColumns() function.
+```{r}
+discharge_elk=renameNWISColumns(discharge_elk)
+head(discharge_elk)
+
+```
+
+Let's plot the dicharge data for the Elkhorn last year.
+```{r Elkhorn Q, fig.show="hide",warning=FALSE,message=FALSE}
+install.packages('ggplot2')
+library(ggplot2)
+names(discharge_elk)
+
+g <- ggplot(discharge_elk,aes(Date,Flow)) + geom_point()
+g
+
+
+```
+
+###Describe what you observed in the graph from the Elkhorn discharge data.
+
+Final task for this exercise: retrieve, clean, and plot the discharge data from the Niobrara, or another site of your choosing for 11-2018 through 11-2019. If you want to find another site, the USGS NWIS web portal can be found here: https://waterdata.usgs.gov/nwis
+
+```{r}
+# write your own code to plot discharge on the Niobrara (or another site) here:
+```
+
+### Describe what you observe in the graph you generate.
+
+## Exercise 2: Exploring urbanization effects on hydrology
+We will now turn our attention to analyzing discharge data from different sites in Omaha that have different levels of urbanization. We'll examine the recent rain event (10-10-19) and explore how different sections of the Big Papio watershed responded to this rain event in terms of surface water flow. Since we want to see the data at the scale of one day, we need to use the function readNWISuv() to retrieve instantaneous (15-min) data for these sites.
+
+```{r Papio gage height, fig.show="hide"}
+
+# 06610740 = Big Papio at Pacific Street
+# 06610780 = West Papio at Pacific Street
+# 06610786 = South Papio near Gretna
+# 06610765 = Little Papio at Aksarben
+# 06610773 = West Papio at Elkhorn
+
+# As before, let's look at what data are available at these sites.
+siteNumbers <- c("06610740","06610780") # Big and West Papio Sites
+dailyDataAvailable <- whatNWISdata(siteNumbers=siteNumbers,
+                    service="dv",statCd="00003")
+dailyDataAvailable
+
+# only "00065" is available (gage height, ft) - but this metric is related to discharge.
+
+siteNumber <- c("06610740","06610780","06610786","06610765","06610773") # Big, West, South, and Little Papio Sites
+parameterCd <- c("00065")  # Gage height
+startDate <- "2019-10-10"  # indicates the starting date
+endDate <- "2019-10-11" # indicates the ending date
+discharge_papio_rain <- readNWISuv(siteNumber=siteNumber, 
+                    parameterCd, startDate, endDate)
+print(head(discharge_papio_rain)) #check
+discharge_papio_rain=renameNWISColumns(discharge_papio_rain)
+
+names(discharge_papio_rain) # Gage height = GH_Inst
+
+# plot data
+
+p <- ggplot(discharge_papio_rain,aes(dateTime,GH_Inst)) + geom_point(aes(dateTime,GH_Inst,color=site_no))
+p + labs(x="Date/Time",y="Gage height (ft)")
+
+```
+
+###Describe what you observed in the graphs from the Papio sites. Which site is probably not as affected by urbanization? What is your reasoning?
+
+## Exercise 3: How does discharge affect turbidity and solute concentrations?
+Finally, we will explore how changes to discharge can affect the physical and chemical aspects of the water flowing through the stream or river. We will examine turbidity first, then solute concentration (as approximated by specific conductance) for the Elkhorn River in a couple different ways.
+
+### Remember, turbidity is a measure of how cloudy the water is (related to concentrations of suspended sediments/particles). Write out a hypothesis for how discharge will (or will not) affect turbidity.
+
+```{r,warning=FALSE,message=FALSE,fig.show="hide"}
+
+# first gather and retrieve the data. What is parameter code for Turbidity? 
+#Parameter codes can be found here: https://nwis.waterdata.usgs.gov/usa/nwis/pmcodes
+
+siteNumbers <- "06800500" # Elkhorn site
+dailyDataAvailable <- whatNWISdata(siteNumbers=siteNumbers,
+                    service="dv",statCd="00003") # statCd "00003" refers to whether or not the maximum value is available.
+dailyDataAvailable
+
+siteNumber <- "06800500" # Elkhorn site
+parameterCd <- c("00060","63680")  # Discharge, turbidity
+startDate <- "2019-04-01"  # turbidity data starting date
+endDate <- "2019-11-01" # indicates the ending date
+turb_elk <- readNWISdv(siteNumber, 
+                    parameterCd, startDate, endDate)
+print(head(turb_elk))
+turb_elk=renameNWISColumns(turb_elk)
+
+# plot turbidity and discharge thru time
+
+t <- ggplot(turb_elk,aes(Date,Turb)) + geom_point()
+t
+
+q <- ggplot(turb_elk,aes(Date,Flow)) + geom_point() + labs(x="Date",y="Discharge (cfs)")
+q
+
+# now plot turbidity as a function of discharge:
+qt <- ggplot(turb_elk,aes(Flow,Turb)) + geom_point() + labs(y="Turbidity (FNU)",x="Discharge (cfs)")
+qt
+
+
+```
+
+### Describe what you observed in the graph. Was your hypothesis supported, or unsupported by the data from the Elkhorn?
+
+OK - last task. Generate graphs of specific conductance through time, and a graph for discharge vs. specific conductance in the Elkhorn River. Write your own code to do this below. Include a hypothesis for the relationship between discharge and specific conductance, and use the graph you make to test this hypothesis. Was your hypothesis supported by the data?
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE,fig.show="hide"}
+
+# first gather and retrieve the data. What is parameter code for specific conductance? 
+#Codes can be found here: https://nwis.waterdata.usgs.gov/usa/nwis/pmcodes
+
+siteNumbers <- "06800500" # Elkhorn site
+dailyDataAvailable <- whatNWISdata(siteNumbers=siteNumbers,
+                    service="dv",statCd="00003") # statCd "00003" refers to whether or not the maximum value is available.
+#dailyDataAvailable
+
+siteNumber <- "06800500" # Elkhorn site
+parameterCd <- c("00060","00095")  # Discharge, SPC
+startDate <- "2019-04-01"  # SPC data starting date
+endDate <- "2019-11-01" # indicates the ending date
+spc_elk <- readNWISdv(siteNumber, 
+                    parameterCd, startDate, endDate)
+#print(head(spc_elk))
+spc_elk=renameNWISColumns(spc_elk)
+#names(spc_elk)
+
+# plot SPC/discharge thru time
+
+t <- ggplot(spc_elk,aes(Date,SpecCond)) + geom_point() + labs(x="Date",y="Specific conductance (uS/cm)")
+t
+
+q <- ggplot(spc_elk,aes(Date,Flow)) + geom_point() + labs(x="Date",y="Discharge (cfs)")
+q
+
+
+# Write out your hypothesis for how discharge will (or will not) affect specific conductance in the Elkhorn:
+
+
+qs <- ggplot(spc_elk,aes(Flow,SpecCond)) + geom_point() + labs(y="Specific Conductance (uS/cm)",x="Discharge (cfs)")
+qs
+
+
+
+```
+
+### Describe what you observed in the graphs for specific conductance. Was your hypothesis supported, or unsupported by the data from the Elkhorn?
+
+
